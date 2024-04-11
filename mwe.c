@@ -14,22 +14,6 @@
 #include "newlib/opcode.h"
 #include "newlib/match_and_patch_hook.h"
 
-// void do_rdrand_patch() {
-// 	uint64_t patch_addr = 0x7da0;
-// 	ucode_t ucode_patch[] = {
-// 		/* Manipulate rax */
-// 		{
-// 			ZEROEXT_DSZ64_DI(RAX, 0x8008), /* Write zero extended */
-// 			NOP,
-// 			NOP,
-// 			END_SEQWORD
-// 		}
-// 	};
-
-// 	patch_ucode(patch_addr, ucode_patch, ARRAY_SZ(ucode_patch));
-// 	hook_match_and_patch(0, RDRAND_XLAT, patch_addr);
-// }
-
 uint32_t ucode_addr_to_patch_addr(uint32_t addr) {
     return addr - 0x7c00;
 }
@@ -103,15 +87,31 @@ void do_fix_IN_patch() {
 	hook_match_and_patch(0x1f, 0x58ba, 0x017a);
 }
 
+void do_rdrand_patch() {
+	uint64_t patch_addr = 0x7da0;
+	ucode_t ucode_patch[] = {
+		/* Manipulate rax */
+		{
+			ZEROEXT_DSZ64_DI(RAX, 0x1337), /* Write zero extended */
+			NOP,
+			NOP,
+			END_SEQWORD
+		}
+	};
+
+	patch_ucode(patch_addr, ucode_patch, ARRAY_SZ(ucode_patch));
+	hook_match_and_patch(0, RDRAND_XLAT, patch_addr);
+}
+
 int main(int argc, char* argv[]) {
 	crbus_write(PMH_CR_BRAM_BASE, 0x1);
 	do_fix_IN_patch();
-	// do_rdrand_patch();
+	do_rdrand_patch();
 
 	register uint32_t eax asm("eax");
 
 	eax = 0x11223344;
 	asm volatile("rdrand eax");
-	printf("eax: 0x%08x\n", eax);
+	printf("rdrand eax: 0x%08x\n", eax);
 	return 0;
 }
