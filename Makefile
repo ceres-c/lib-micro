@@ -64,7 +64,7 @@ remote:
 	rsync -avzh ./* $(USER)@up:~/lib-micro/
 	ssh $(USER)@up "make -C lib-micro all"
 
-mwe:
+mwe: mwe.c
 	$(CC) -m32 -O0 -no-pie -ggdb -Wall -masm=intel -Wmissing-field-initializers -Wno-unused-function -Wno-unused-variable mwe.c -o mwe
 
 .PHONY: all clean static dynamic tools upload docs host-docs remote
