@@ -10,7 +10,7 @@ typedef struct {
 } u_result_t;
 
 __attribute__((always_inline))
-u_result_t static inline udbgrd(uint32_t type, uint32_t addr) {
+inline static u_result_t udbgrd(uint32_t type, uint32_t addr) {
 	uint32_t res_low, res_high;
 	lmfence();
 	asm volatile(
@@ -28,7 +28,7 @@ u_result_t static inline udbgrd(uint32_t type, uint32_t addr) {
 }
 
 __attribute__((always_inline))
-u_result_t static inline udbgwr(uint32_t type, uint32_t addr, uint64_t value) {
+inline static u_result_t udbgwr(uint32_t type, uint32_t addr, uint64_t value) {
 	uint32_t value_low = (uint32_t)(value & 0xFFFFFFFF);
 	uint32_t value_high = (uint32_t)(value >> 32);
 	uint32_t res_low, res_high;
@@ -50,7 +50,7 @@ u_result_t static inline udbgwr(uint32_t type, uint32_t addr, uint64_t value) {
 }
 
 __attribute__((always_inline))
-uint32_t static inline ucode_invoke_2(uint32_t addr, uint32_t arg1, uint32_t arg2) {
+inline static uint32_t ucode_invoke_2(uint32_t addr, uint32_t arg1, uint32_t arg2) {
 	uint32_t eax = addr, ecx = 0xD8;
 	lmfence();
 	asm volatile(
@@ -69,7 +69,7 @@ uint32_t static inline ucode_invoke_2(uint32_t addr, uint32_t arg1, uint32_t arg
 
 #define SIMPLERD(name, type) \
 __attribute__((always_inline)) \
-uint64_t static inline name(uint32_t addr) { \
+inline static uint64_t name(uint32_t addr) { \
     return (uint64_t)udbgrd(type, addr).value; \
 }
 
@@ -78,7 +78,7 @@ SIMPLERD(crbus_read, 0x00)
 
 #define SIMPLEWR(name, type)     \
 __attribute__((always_inline)) \
-void static inline name(uint32_t addr, uint64_t value) { \
+inline static void name(uint32_t addr, uint64_t value) { \
 	udbgwr(type, addr, value); \
 }
 

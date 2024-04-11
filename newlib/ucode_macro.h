@@ -9,7 +9,7 @@
 #define MOD2 (1ULL << 45)
 
 __attribute__((always_inline))
-static inline uint64_t parity0(uint64_t value) {
+inline static uint64_t parity0(uint64_t value) {
     uint64_t parity = 0;
     while (value) {
         parity ^= (value & 1);
@@ -19,7 +19,7 @@ static inline uint64_t parity0(uint64_t value) {
 }
 
 __attribute__((always_inline))
-static inline uint64_t parity1(uint64_t value) {
+inline static uint64_t parity1(uint64_t value) {
     uint64_t parity = 0;
     value = value >> 1;
     while (value) {

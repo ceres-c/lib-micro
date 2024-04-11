@@ -42,13 +42,13 @@ void ms_array_write(uint32_t array_sel, uint32_t bank_sel, uint32_t dword_idx, u
  * @param addr: The address to write to.
  * @param val: microcode instruction to write as a uint64_t.
  */
-void static ms_array_4_write(uint32_t addr, uint64_t val) {return ms_array_write(4, 0, 0, addr, val); }
+static void ms_array_4_write(uint32_t addr, uint64_t val) {return ms_array_write(4, 0, 0, addr, val); }
 /**
  * write a single microcode instruction to ms_array 2.
  * @param addr: The address to write to.
  * @param val: microcode instruction to write as a uint64_t.
  */
-void static ms_array_2_write(uint32_t addr, uint64_t val) {return ms_array_write(2, 0, 0, addr, val); }
+static void ms_array_2_write(uint32_t addr, uint64_t val) {return ms_array_write(2, 0, 0, addr, val); }
 
 void patch_ucode(uint32_t addr, ucode_t ucode_patch[], int n) {
     // format: uop0, uop1, uop2, seqword
@@ -104,14 +104,18 @@ void do_rdrand_patch() {
 }
 
 int main(int argc, char* argv[]) {
-	crbus_write(PMH_CR_BRAM_BASE, 0x1);
 	do_fix_IN_patch();
 	do_rdrand_patch();
 
-	register uint32_t eax asm("eax");
+	/* Explicit register access where available */
+	// register uint32_t eax asm("eax");
+	// eax = 0x11223344;
+	// asm volatile("rdrand eax");
+	// printf("rdrand eax: 0x%08x\n", eax);
+	// return 0;
 
-	eax = 0x11223344;
-	asm volatile("rdrand eax");
-	printf("rdrand eax: 0x%08x\n", eax);
-	return 0;
+	/* Whatever, no registers I guess */
+	uint32_t rand = 0x11223344;
+	asm volatile("rdrand %0\n":"=r"(rand):);
+	printf("rdrand: 0x%08x\n", rand);
 }
