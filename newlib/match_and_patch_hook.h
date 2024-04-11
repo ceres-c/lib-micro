@@ -6,14 +6,14 @@
 uint32_t match_and_patch_hook_addr = 0x7de0;
 ucode_t match_and_patch_hook_ucode_patch[] = {
     {   // 0x7de0
-        MOVE_DSZ64_DR(TMP0, RDI), 
-        MOVE_DSZ64_DR(TMP1, RSI), 
-        ZEROEXT_DSZ32_DI(TMP10, 0x0), 
-        NOP_SEQWORD 
-    }, 
+        MOVE_DSZ64_DR(TMP0, RDI),
+        MOVE_DSZ64_DR(TMP1, RSI),
+        ZEROEXT_DSZ32_DI(TMP10, 0x0),
+        NOP_SEQWORD
+    },
     {   // 0x7de4
         // pause frontend
-        MOVEFROMCREG_DSZ64_DI(TMP12, 0x38c), 
+        MOVEFROMCREG_DSZ64_DI(TMP12, 0x38c),
         MOVETOCREG_DSZ64_RI(TMP10, 0x38c),
         // write match&patch at location tmp1 with the value of tmp0
         ZEROEXT_DSZ32_DI(TMP9, 0x303),

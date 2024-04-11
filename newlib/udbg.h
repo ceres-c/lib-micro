@@ -51,19 +51,20 @@ u_result_t static inline udbgwr(uint32_t type, uint32_t addr, uint64_t value) {
 
 __attribute__((always_inline))
 uint32_t static inline ucode_invoke_2(uint32_t addr, uint32_t arg1, uint32_t arg2) {
-	uint32_t rax = addr, rcx = 0xD8;
+	uint32_t eax = addr, ecx = 0xD8;
 	lmfence();
 	asm volatile(
 		".byte 0x0F, 0x0F\n\t"
-		: "+a" (rax)
-		, "+c" (rcx)
-		, "+edi" (arg1)
-		, "+esi" (arg2)
+		: "+a" (eax)
+		, "+c" (ecx)
+		, "+rdi" (arg1)
+		, "+rsi" (arg2)
 		:
-		: "rbx", "rdx" //, "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15" // TODO remove?
+		: "ebx", "edx" //, "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"
+					   // It shouldn't (TM) matter if these are clobbered, as we're in x86 anyway
 	);
 	lmfence();
-	return rax;
+	return eax;
 }
 
 #define SIMPLERD(name, type) \
