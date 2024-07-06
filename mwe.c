@@ -1,11 +1,5 @@
 #define _GNU_SOURCE
 
-// #include "lib_micro_x86/ldat.h"
-// #include "lib_micro_x86/patch.h"
-// #include "lib_micro_x86/ucode_macro.h"
-
-
-
 #include <stdio.h>
 #include <stdint.h>
 #include "newlib/misc.h"
@@ -87,16 +81,35 @@ void do_fix_IN_patch() {
 	hook_match_and_patch(0x1f, 0x58ba, 0x017a);
 }
 
-void do_rdrand_patch() {
-	uint64_t patch_addr = 0x7da0;
+void do_rdrand_patch(void) {
+	uint32_t patch_addr = 0x7da0;
+
+	/* Add 1 to rcx if rax != rbx */
 	ucode_t ucode_patch[] = {
-		/* Manipulate rax */
 		{
-			ZEROEXT_DSZ64_DI(RAX, 0x1337), /* Write zero extended */
-			NOP,
+			SUB_DSZ64_DRR(TMP0, RAX, RBX),	/* tmp0 = rax - rbx. tmp0 now has per-register flags set */
+			UJMPCC_DIRECT_NOTTAKEN_CONDNZ_RI(TMP0, patch_addr + 0x04),
 			NOP,
 			END_SEQWORD
-		}
+		},
+		{ // 0x04
+			MOVE_DSZ64_DR(TMP0, RCX),		/* Move current value of rcx to tmp0, because ucode ADD can */
+			ADD_DSZ64_DRI(RCX, TMP0, 1),	/* operate on only one architectual register at a time, it seems */
+			NOP,
+			END_SEQWORD
+		},
+		// { /* Alternative code with no branching (negative results yield huge jumps) */
+		// 	SUB_DSZ64_DRR(TMP0, RAX, RBX),	/* tmp0 = rax - rbx. tmp0 now has per-register flags set */
+		// 	ADD_DSZ64_DRR(RCX, TMP0, RCX),
+		// 	NOP,
+		// 	END_SEQWORD
+		// },
+		// { /* Alternative code with xor and or to highlight all flipped bits */
+		// 	XOR_DSZ64_DRR(TMP0, RAX, RBX),	/* tmp0 = rax - rbx. tmp0 now has per-register flags set */
+		// 	OR_DSZ64_DRR(RCX, TMP0, RCX),
+		// 	NOP,
+		// 	END_SEQWORD
+		// },
 	};
 
 	patch_ucode(patch_addr, ucode_patch, ARRAY_SZ(ucode_patch));
@@ -104,18 +117,71 @@ void do_rdrand_patch() {
 }
 
 int main(int argc, char* argv[]) {
+	uint32_t operand1 = 1, operand2 = 1;
+	uint32_t ecx_value = 0;
+
+	printf("[+] Before patching\n");
+	printf("rdrand ecx [eax: 0x%x - ebx: 0x%x]:\n", operand1, operand2);
+	// NOTE: This asm uses intel syntax
+	__asm__ __volatile__ (
+		"xor %%ecx, %%ecx\t\n"
+		"mov %%eax, %[op1];\t\n"
+		"mov %%ebx, %[op2];\t\n"
+		"rdrand ecx;\t\n" // operand2 - operand1
+		"rdrand ecx;\t\n" // operand2 - operand1
+		"mov %[ecx_value], %%ecx;\t\n"
+
+		: [ecx_value]	"=r" (ecx_value)				// Output operands
+		: [op1]			"r" (operand1),					// Input operands
+		  [op2]			"r" (operand2)
+		: "%eax", // result_a							// Clobbered register
+		  "%ebx", // result_b
+		  "%ecx"  // scratch
+	);
+	printf("  ecx: 0x%x\n", ecx_value);
+
 	do_fix_IN_patch();
 	do_rdrand_patch();
+	printf("[+] Patch applied\n");
 
-	/* Explicit register access where available */
-	// register uint32_t eax asm("eax");
-	// eax = 0x11223344;
-	// asm volatile("rdrand eax");
-	// printf("rdrand eax: 0x%08x\n", eax);
-	// return 0;
+	printf("rdrand ecx [eax: 0x%x - ebx: 0x%x]:\n", operand1, operand2);
+	// NOTE: This asm uses intel syntax
+	__asm__ __volatile__ (
+		"xor %%ecx, %%ecx\t\n"
+		"mov %%eax, %[op1];\t\n"
+		"mov %%ebx, %[op2];\t\n"
+		"rdrand ecx;\t\n" // operand2 - operand1
+		"rdrand ecx;\t\n" // operand2 - operand1
+		"mov %[ecx_value], %%ecx;\t\n"
 
-	/* Whatever, no registers I guess */
-	uint32_t rand = 0x11223344;
-	asm volatile("rdrand %0\n":"=r"(rand):);
-	printf("rdrand: 0x%08x\n", rand);
+		: [ecx_value]	"=r" (ecx_value)				// Output operands
+		: [op1]			"r" (operand1),					// Input operands
+		  [op2]			"r" (operand2)
+		: "%eax", // operand1							// Clobbered register
+		  "%ebx", // operand2
+		  "%ecx"  // result
+	);
+	printf("  ecx: 0x%x\n", ecx_value);
+
+	operand1 = 0b01, operand2 = 0b11;
+	printf("rdrand ecx [eax: 0x%x - ebx: 0x%x]:\n", operand1, operand2);
+	// NOTE: This asm uses intel syntax
+	__asm__ __volatile__ (
+		"xor %%ecx, %%ecx\t\n"
+		"mov %%eax, %[op1];\t\n"
+		"mov %%ebx, %[op2];\t\n"
+		"rdrand ecx;\t\n" // operand2 - operand1
+		"rdrand ecx;\t\n" // operand2 - operand1
+		"mov %[ecx_value], %%ecx;\t\n"
+
+		: [ecx_value]	"=r" (ecx_value)				// Output operands
+		: [op1]			"r" (operand1),					// Input operands
+		  [op2]			"r" (operand2)
+		: "%eax", // result_a							// Clobbered register
+		  "%ebx", // result_b
+		  "%ecx"  // scratch
+	);
+	printf("  ecx: 0x%x\n", ecx_value);
+
+	printf("[+] To reset the patch use the -r setting of any program in the tools folder\n");
 }

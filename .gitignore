@@ -4,3 +4,6 @@ inst.h
 .gdb_history
 .cache/
 build/
+mwe
+.vscode
+
