@@ -2,6 +2,7 @@
 #define UCODE_MACRO_H_
 
 #include "opcode.h"
+#include "xlat.h"
 
 #define MOD0 (1UL << 23)
 #define MOD1 (1UL << 44)
