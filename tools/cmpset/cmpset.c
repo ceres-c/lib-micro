@@ -85,6 +85,18 @@ void do_rdrand_patch(void) {
 			NOP,
 			END_SEQWORD
 		},
+		// { /* Alternative code with no branching (negative results yield huge jumps) */
+		// 	SUB_DSZ64_DRR(TMP0, RAX, RBX),	/* tmp0 = rax - rbx. tmp0 now has per-register flags set */
+		// 	ADD_DSZ64_DRR(RCX, TMP0, RCX),
+		// 	NOP,
+		// 	END_SEQWORD
+		// },
+		// { /* Alternative code with xor and or to highlight all flipped bits */
+		// 	XOR_DSZ64_DRR(TMP0, RAX, RBX),	/* tmp0 = rax - rbx. tmp0 now has per-register flags set */
+		// 	OR_DSZ64_DRR(RCX, TMP0, RCX),
+		// 	NOP,
+		// 	END_SEQWORD
+		// },
 	};
 
 	patch_ucode(patch_addr, ucode_patch, ARRAY_SZ(ucode_patch));
@@ -146,7 +158,7 @@ int main(int argc, char* argv[]) {
 	);
 	printf("  rcx: 0x%lx\n", rcx_value);
 
-	operand1 = 1, operand2 = 2;
+	operand1 = 0b01, operand2 = 0b11;
 	printf("rdrand rcx [rax: 0x%lx - rbx: 0x%lx]:\n", operand1, operand2);
 	// NOTE: This asm uses intel syntax
 	__asm__ __volatile__ (
