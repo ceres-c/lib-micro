@@ -70,50 +70,21 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state){
 
 void do_rdrand_patch(void) {
 	uint64_t patch_addr = 0x7da0;
-	// ucode_t ucode_patch[] = {
-	// 	/* Write fixed value to rcx */
-	// 	{
-	// 		ZEROEXT_DSZ64_DI(RCX, 0x1337), /* Write zero extended */
-	// 		NOP,
-	// 		NOP,
-	// 		END_SEQWORD
-	// 	}
-	// };
 
+	/* Add 1 to rcx if rax != rbx */
 	ucode_t ucode_patch[] = {
 		{
-			SUB_DSZ64_DRR(TMP0, RAX, RBX), /* tmp0 = rax - rbx. tmp0 now has per-register flags set */
-            UJMPCC_DIRECT_NOTTAKEN_CONDZ_RI(TMP0, patch_addr + 0x08),
+			SUB_DSZ64_DRR(TMP0, RAX, RBX),	/* tmp0 = rax - rbx. tmp0 now has per-register flags set */
+			UJMPCC_DIRECT_NOTTAKEN_CONDNZ_RI(TMP0, patch_addr + 0x04),
 			NOP,
-            NOP_SEQWORD
-        },
-        { // 0x04
-            NOP,
-            NOP,
-            MOVE_DSZ64_DI(RCX, 0x1234),
-            END_SEQWORD
-        },
-        { // 0x08
-            NOP,
-            NOP,
-            MOVE_DSZ64_DI(RCX, 0x5678),
-            END_SEQWORD
-        }
-
-		// /* Poor man's cmp */
-		// {
-		// 	SUB_DSZ64_DRR(TMP0, RAX, RBX), /* tmp0 = rax - rbx. tmp0 now has per-register flags set */
-		// 	UJMPCC_DIRECT_NOTTAKEN_CONDZ_RI(TMP0, patch_addr + 0x04),
-		// 	NOP,
-		// 	END_SEQWORD
-		// },
-		// {
-		// 	NOP,
-		// 	// ADD_DSZ64_DRI(RCX, RCX, 1),
-		// 	NOP,
-		// 	NOP,
-		// 	END_SEQWORD
-		// },
+			END_SEQWORD
+		},
+		{ // 0x04
+			MOVE_DSZ64_DR(TMP0, RCX),		/* Move current value of rcx to tmp0, because ucode ADD can */
+			ADD_DSZ64_DRI(RCX, TMP0, 1),	/* operate on only one architectual register at a time, it seems */
+			NOP,
+			END_SEQWORD
+		},
 	};
 
 	patch_ucode(patch_addr, ucode_patch, ARRAY_SZ(ucode_patch));
@@ -162,15 +133,16 @@ int main(int argc, char* argv[]) {
 		"xor %%rcx, %%rcx\t\n"
 		"mov %%rax, %[op1];\t\n"
 		"mov %%rbx, %[op2];\t\n"
-	    "rdrand rcx;\t\n" // operand2 - operand1
-	    "mov %[rcx_value], %%rcx;\t\n"
+		"rdrand rcx;\t\n" // operand2 - operand1
+		"rdrand rcx;\t\n" // operand2 - operand1
+		"mov %[rcx_value], %%rcx;\t\n"
 
-	    : [rcx_value]	"=r" (rcx_value)				// Output operands
-	    : [op1]			"r" (operand1),					// Input operands
-	      [op2]			"r" (operand2)
-	    : "%rax", // result_a							// Clobbered register
-	      "%rbx", // result_b
-	      "%rcx"  // scratch
+		: [rcx_value]	"=r" (rcx_value)				// Output operands
+		: [op1]			"r" (operand1),					// Input operands
+		  [op2]			"r" (operand2)
+		: "%rax", // result_a							// Clobbered register
+		  "%rbx", // result_b
+		  "%rcx"  // scratch
 	);
 	printf("  rcx: 0x%lx\n", rcx_value);
 
@@ -181,23 +153,18 @@ int main(int argc, char* argv[]) {
 		"xor %%rcx, %%rcx\t\n"
 		"mov %%rax, %[op1];\t\n"
 		"mov %%rbx, %[op2];\t\n"
-	    "rdrand rcx;\t\n" // operand2 - operand1
-	    "mov %[rcx_value], %%rcx;\t\n"
+		"rdrand rcx;\t\n" // operand2 - operand1
+		"rdrand rcx;\t\n" // operand2 - operand1
+		"mov %[rcx_value], %%rcx;\t\n"
 
-	    : [rcx_value]	"=r" (rcx_value)				// Output operands
-	    : [op1]			"r" (operand1),					// Input operands
-	      [op2]			"r" (operand2)
-	    : "%rax", // result_a							// Clobbered register
-	      "%rbx", // result_b
-	      "%rcx"  // scratch
+		: [rcx_value]	"=r" (rcx_value)				// Output operands
+		: [op1]			"r" (operand1),					// Input operands
+		  [op2]			"r" (operand2)
+		: "%rax", // result_a							// Clobbered register
+		  "%rbx", // result_b
+		  "%rcx"  // scratch
 	);
 	printf("  rcx: 0x%lx\n", rcx_value);
-
-	// volatile uint32_t rand;
-	// register uint32_t eax asm("eax");
-	// __asm__ __volatile__(
-	// 	".byte 0x0f, 0xc7, 0xf0;"); /* rdrand eax - otherwise gcc gives `operand size mismatch` */
-	// rand = eax; /* Copy before call to printk */
 
 	return 0;
 }
