@@ -86,18 +86,47 @@ void do_rdrand_patch(void) {
 
 	/* Add 1 to rcx if rax != rbx */
 	ucode_t ucode_patch[] = {
+		// { /* rcx = 0x1337 */
+		// 	ZEROEXT_DSZ64_DI(RCX, 0x1337), /* Write zero extended */
+		// 	NOP,
+		// 	NOP,
+		// 	END_SEQWORD
+		// },
+
 		{
-			SUB_DSZ64_DRR(TMP0, RAX, RBX),	/* tmp0 = rax - rbx. tmp0 now has per-register flags set */
-			UJMPCC_DIRECT_NOTTAKEN_CONDNZ_RI(TMP0, patch_addr + 0x04),
 			NOP,
-			END_SEQWORD
+			NOP,
+			SUBR_DSZ32_DRR(TMP0, RAX, RBX),	/* tmp0 = rax - rbx. tmp0 now has per-register flags set */
+			SEQ_GOTO2(patch_addr + 0x08),
+			// NOP_SEQWORD,
 		},
 		{ // 0x04
-			MOVE_DSZ64_DR(TMP0, RCX),		/* Move current value of rcx to tmp0, because ucode ADD can */
-			ADD_DSZ64_DRI(RCX, TMP0, 1),	/* operate on only one architectual register at a time, it seems */
+			MOVE_DSZ32_DI(RCX, 0xA0A1A2A3),
+			// NOP,
+			NOP,
 			NOP,
 			END_SEQWORD
 		},
+		{ // 0x08
+			MOVE_DSZ32_DR(TMP0, RCX),		/* Move current value of rcx to tmp0, because ucode ADD can */
+			ADD_DSZ32_DRI(RCX, TMP0, 1),	/* operate on only one architectual register at a time, it seems */
+			MOVE_DSZ64_DI(RCX, 0xA0A1A2A3),
+			// NOP,
+			END_SEQWORD
+		},
+
+		// {
+		// 	SUB_DSZ32_DRR(TMP0, RAX, RBX),	/* tmp0 = rax - rbx. tmp0 now has per-register flags set */
+		// 	UJMPCC_DIRECT_NOTTAKEN_CONDNZ_RI(TMP0, patch_addr + 0x04),
+		// 	NOP,
+		// 	END_SEQWORD
+		// },
+		// { // 0x04
+		// 	MOVE_DSZ32_DR(TMP0, RCX),		/* Move current value of rcx to tmp0, because ucode ADD can */
+		// 	ADD_DSZ32_DRI(RCX, TMP0, 1),	/* operate on only one architectual register at a time, it seems */
+		// 	NOP,
+		// 	END_SEQWORD
+		// },
 		// { /* Alternative code with no branching (negative results yield huge jumps) */
 		// 	SUB_DSZ64_DRR(TMP0, RAX, RBX),	/* tmp0 = rax - rbx. tmp0 now has per-register flags set */
 		// 	ADD_DSZ64_DRR(RCX, TMP0, RCX),
@@ -117,17 +146,15 @@ void do_rdrand_patch(void) {
 }
 
 int main(int argc, char* argv[]) {
-	uint32_t operand1 = 1, operand2 = 1;
-	uint32_t ecx_value = 0;
+	uint32_t operand1 = 1, operand2 = 1, ecx_value = 0;
 
 	printf("[+] Before patching\n");
-	printf("rdrand ecx [eax: 0x%x - ebx: 0x%x]:\n", operand1, operand2);
+	printf("[.] rdrand ecx [eax: 0x%x - ebx: 0x%x]: ", operand1, operand2);
 	// NOTE: This asm uses intel syntax
 	__asm__ __volatile__ (
 		"xor %%ecx, %%ecx\t\n"
 		"mov %%eax, %[op1];\t\n"
 		"mov %%ebx, %[op2];\t\n"
-		"rdrand ecx;\t\n" // operand2 - operand1
 		"rdrand ecx;\t\n" // operand2 - operand1
 		"mov %[ecx_value], %%ecx;\t\n"
 
@@ -138,19 +165,46 @@ int main(int argc, char* argv[]) {
 		  "%ebx", // result_b
 		  "%ecx"  // scratch
 	);
-	printf("  ecx: 0x%x\n", ecx_value);
+	printf("0x%x\n", ecx_value);
+
 
 	do_fix_IN_patch();
 	do_rdrand_patch();
 	printf("[+] Patch applied\n");
 
-	printf("rdrand ecx [eax: 0x%x - ebx: 0x%x]:\n", operand1, operand2);
+	// for (int i = 0; /*i < 10*/ ; i++) {
+	// 	ecx_value = 0;
+	// 	if (i % 2 == 0) {
+	// 		operand1++;
+	// 	} else {
+	// 		operand2++;
+	// 	}
+	// 	printf("rdrand ecx [eax: 0x%x - ebx: 0x%x]: ", operand1, operand2);
+	// 	__asm__ __volatile__ (
+	// 		"xor %%ecx, %%ecx\t\n"
+	// 		"mov %%eax, %[op1];\t\n"
+	// 		"mov %%ebx, %[op2];\t\n"
+	// 		"rdrand ecx;\t\n" // operand2 - operand1
+	// 		"mov %[ecx_value], %%ecx;\t\n"
+
+	// 		: [ecx_value]	"=r" (ecx_value)				// Output operands
+	// 		: [op1]			"r" (operand1),					// Input operands
+	// 		  [op2]			"r" (operand2)
+	// 		: "%eax", // result_a							// Clobbered register
+	// 		  "%ebx", // result_b
+	// 		  "%ecx"  // scratch
+	// 	);
+	// 	printf("0x%x\n", ecx_value);
+	// }
+
+
+	operand1 = 1, operand2 = 1, ecx_value = 0;
+	printf("[.] rdrand ecx [eax: 0x%x - ebx: 0x%x]: ", operand1, operand2);
 	// NOTE: This asm uses intel syntax
 	__asm__ __volatile__ (
 		"xor %%ecx, %%ecx\t\n"
 		"mov %%eax, %[op1];\t\n"
 		"mov %%ebx, %[op2];\t\n"
-		"rdrand ecx;\t\n" // operand2 - operand1
 		"rdrand ecx;\t\n" // operand2 - operand1
 		"mov %[ecx_value], %%ecx;\t\n"
 
@@ -161,16 +215,15 @@ int main(int argc, char* argv[]) {
 		  "%ebx", // operand2
 		  "%ecx"  // result
 	);
-	printf("  ecx: 0x%x\n", ecx_value);
+	printf("0x%x\n", ecx_value);
 
-	operand1 = 0b01, operand2 = 0b11;
-	printf("rdrand ecx [eax: 0x%x - ebx: 0x%x]:\n", operand1, operand2);
+	operand1 = 0b01, operand2 = 0b00, ecx_value = 0;
+	printf("[.] rdrand ecx [eax: 0x%x - ebx: 0x%x]: ", operand1, operand2);
 	// NOTE: This asm uses intel syntax
 	__asm__ __volatile__ (
 		"xor %%ecx, %%ecx\t\n"
 		"mov %%eax, %[op1];\t\n"
 		"mov %%ebx, %[op2];\t\n"
-		"rdrand ecx;\t\n" // operand2 - operand1
 		"rdrand ecx;\t\n" // operand2 - operand1
 		"mov %[ecx_value], %%ecx;\t\n"
 
@@ -181,7 +234,7 @@ int main(int argc, char* argv[]) {
 		  "%ebx", // result_b
 		  "%ecx"  // scratch
 	);
-	printf("  ecx: 0x%x\n", ecx_value);
+	printf("0x%x\n", ecx_value);
 
 	printf("[+] To reset the patch use the -r setting of any program in the tools folder\n");
 }
