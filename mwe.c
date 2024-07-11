@@ -8,6 +8,15 @@
 #include "newlib/opcode.h"
 #include "newlib/match_and_patch_hook.h"
 
+// #define RDRAND_1337
+// #define RDRAND_SUB_ADD
+#define RDRAND_ADD
+// #define RDRAND_CMP
+// #define RDRAND_XOR
+#if (defined(RDRAND_1337) + defined(RDRAND_SUB_ADD) + defined(RDRAND_ADD) + defined(RDRAND_CMP) + defined(RDRAND_XOR)) != 1
+#error You should pick exactly one rdrand patch
+#endif
+
 uint32_t ucode_addr_to_patch_addr(uint32_t addr) {
     return addr - 0x7c00;
 }
@@ -86,59 +95,49 @@ void do_rdrand_patch(void) {
 
 	/* Add 1 to rcx if rax != rbx */
 	ucode_t ucode_patch[] = {
-		// { /* rcx = 0x1337 */
-		// 	ZEROEXT_DSZ64_DI(RCX, 0x1337), /* Write zero extended */
-		// 	NOP,
-		// 	NOP,
-		// 	END_SEQWORD
-		// },
 
-		{
+		#if defined(RDRAND_1337)
+		{ /* rcx = 0x1337 */
+			ZEROEXT_DSZ64_DI(RCX, 0x1337), /* Write zero extended */
 			NOP,
 			NOP,
-			SUBR_DSZ32_DRR(TMP0, RAX, RBX),	/* tmp0 = rax - rbx. tmp0 now has per-register flags set */
-			SEQ_GOTO2(patch_addr + 0x08),
-			// NOP_SEQWORD,
+			END_SEQWORD
+		},
+		#elif defined(RDRAND_CMP)
+		{ /* This actually seems to be broken in coreboot, the cpu hands after some (~20) iterations */
+			SUB_DSZ32_DRR(TMP0, RAX, RBX),	/* tmp0 = rax - rbx. tmp0 now has per-register flags set */
+			UJMPCC_DIRECT_NOTTAKEN_CONDNZ_RI(TMP0, patch_addr + 0x04),
+			NOP,
+			END_SEQWORD
 		},
 		{ // 0x04
-			MOVE_DSZ32_DI(RCX, 0xA0A1A2A3),
-			// NOP,
-			NOP,
-			NOP,
-			END_SEQWORD
-		},
-		{ // 0x08
 			MOVE_DSZ32_DR(TMP0, RCX),		/* Move current value of rcx to tmp0, because ucode ADD can */
 			ADD_DSZ32_DRI(RCX, TMP0, 1),	/* operate on only one architectual register at a time, it seems */
-			MOVE_DSZ64_DI(RCX, 0xA0A1A2A3),
-			// NOP,
+			NOP,
 			END_SEQWORD
 		},
-
-		// {
-		// 	SUB_DSZ32_DRR(TMP0, RAX, RBX),	/* tmp0 = rax - rbx. tmp0 now has per-register flags set */
-		// 	UJMPCC_DIRECT_NOTTAKEN_CONDNZ_RI(TMP0, patch_addr + 0x04),
-		// 	NOP,
-		// 	END_SEQWORD
-		// },
-		// { // 0x04
-		// 	MOVE_DSZ32_DR(TMP0, RCX),		/* Move current value of rcx to tmp0, because ucode ADD can */
-		// 	ADD_DSZ32_DRI(RCX, TMP0, 1),	/* operate on only one architectual register at a time, it seems */
-		// 	NOP,
-		// 	END_SEQWORD
-		// },
-		// { /* Alternative code with no branching (negative results yield huge jumps) */
-		// 	SUB_DSZ64_DRR(TMP0, RAX, RBX),	/* tmp0 = rax - rbx. tmp0 now has per-register flags set */
-		// 	ADD_DSZ64_DRR(RCX, TMP0, RCX),
-		// 	NOP,
-		// 	END_SEQWORD
-		// },
-		// { /* Alternative code with xor and or to highlight all flipped bits */
-		// 	XOR_DSZ64_DRR(TMP0, RAX, RBX),	/* tmp0 = rax - rbx. tmp0 now has per-register flags set */
-		// 	OR_DSZ64_DRR(RCX, TMP0, RCX),
-		// 	NOP,
-		// 	END_SEQWORD
-		// },
+		#elif defined(RDRAND_SUB_ADD)
+		{ /* Alternative code with no branching (negative results yield huge jumps) */
+			SUB_DSZ64_DRR(TMP0, RAX, RBX),	/* tmp0 = rax - rbx. tmp0 now has per-register flags set */
+			ADD_DSZ64_DRR(RCX, TMP0, RCX),
+			NOP,
+			END_SEQWORD
+		},
+		#elif defined(RDRAND_ADD)
+		{ /* rcx += 1 */
+			ADD_DSZ64_DRI(RCX, RCX, 1),
+			NOP,
+			NOP,
+			END_SEQWORD
+		},
+		#elif defined(RDRAND_XOR)
+		{ /* Alternative code with xor and or to highlight all flipped bits */
+			XOR_DSZ64_DRR(TMP0, RAX, RBX),	/* tmp0 = rax - rbx. tmp0 now has per-register flags set */
+			OR_DSZ64_DRR(RCX, TMP0, RCX),
+			NOP,
+			END_SEQWORD
+		},
+		#endif
 	};
 
 	patch_ucode(patch_addr, ucode_patch, ARRAY_SZ(ucode_patch));
@@ -167,37 +166,15 @@ int main(int argc, char* argv[]) {
 	);
 	printf("0x%x\n", ecx_value);
 
-
 	do_fix_IN_patch();
 	do_rdrand_patch();
 	printf("[+] Patch applied\n");
 
-	// for (int i = 0; /*i < 10*/ ; i++) {
-	// 	ecx_value = 0;
-	// 	if (i % 2 == 0) {
-	// 		operand1++;
-	// 	} else {
-	// 		operand2++;
-	// 	}
-	// 	printf("rdrand ecx [eax: 0x%x - ebx: 0x%x]: ", operand1, operand2);
-	// 	__asm__ __volatile__ (
-	// 		"xor %%ecx, %%ecx\t\n"
-	// 		"mov %%eax, %[op1];\t\n"
-	// 		"mov %%ebx, %[op2];\t\n"
-	// 		"rdrand ecx;\t\n" // operand2 - operand1
-	// 		"mov %[ecx_value], %%ecx;\t\n"
-
-	// 		: [ecx_value]	"=r" (ecx_value)				// Output operands
-	// 		: [op1]			"r" (operand1),					// Input operands
-	// 		  [op2]			"r" (operand2)
-	// 		: "%eax", // result_a							// Clobbered register
-	// 		  "%ebx", // result_b
-	// 		  "%ecx"  // scratch
-	// 	);
-	// 	printf("0x%x\n", ecx_value);
-	// }
-
-
+	#if defined(RDRAND_1337)
+	#error Not implemented 1337 print
+	#elif defined(RDRAND_CMP)
+	#error Not implemented cmp print
+	#elif defined(RDRAND_SUB_ADD)
 	operand1 = 1, operand2 = 1, ecx_value = 0;
 	printf("[.] rdrand ecx [eax: 0x%x - ebx: 0x%x]: ", operand1, operand2);
 	// NOTE: This asm uses intel syntax
@@ -235,6 +212,21 @@ int main(int argc, char* argv[]) {
 		  "%ecx"  // scratch
 	);
 	printf("0x%x\n", ecx_value);
+	#elif defined(RDRAND_ADD)
+	printf("rdrand ecx (twice): ");
+	__asm__ __volatile__ (
+		"xor %%ecx, %%ecx\t\n"
+		"rdrand ecx;\t\n" // ecx += 1
+		"rdrand ecx;\t\n" // ecx += 1
+		"mov %[ecx_value], %%ecx;\t\n"
 
+		: [ecx_value]	"=r" (ecx_value)				// Output operands
+		:												// Input operands
+		: "%ecx"  // result								// Clobbered registers
+	);
+	printf("0x%x\n", ecx_value);
+	#elif defined(RDRAND_XOR)
+	#error Not implemented xor print
+	#endif
 	printf("[+] To reset the patch use the -r setting of any program in the tools folder\n");
 }
