@@ -2,11 +2,32 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <x86intrin.h>
 #include "newlib/misc.h"
 #include "newlib/ucode_macro.h"
 #include "newlib/udbg.h"
 #include "newlib/opcode.h"
 #include "newlib/match_and_patch_hook.h"
+
+#define ESTIMATE_ROUNDS 1000
+#define REP10(BODY) BODY BODY BODY BODY BODY BODY BODY BODY BODY BODY
+#define REP100(BODY) REP10(REP10(BODY))
+
+static void sort(uint32_t *arr, int n) {
+	/*
+	 * Simple bubble sort implementation to sort an array of uint32_t values.
+	 * Good enough to calculate the median of a small array.
+	 */
+	for (int i = 0; i < n; i++) {
+		for (int j = i + 1; j < n; j++) {
+			if (arr[i] > arr[j]) {
+				uint32_t temp = arr[i];
+				arr[i] = arr[j];
+				arr[j] = temp;
+			}
+		}
+	}
+}
 
 uint32_t ucode_addr_to_patch_addr(uint32_t addr) {
     return addr - 0x7c00;
@@ -120,19 +141,28 @@ void do_rdrand_patch() {
 
 int main(int argc, char* argv[]) {
 	uint32_t operand1 = 1, operand2 = 1, result = 0;
+	uint32_t measurements[ESTIMATE_ROUNDS], t1, t2;
 
 	do_fix_IN_patch();
 	do_rdrand_patch();
 
-	__asm__ __volatile__ (
-		"xor %%ecx, %%ecx;\t\n"
-		"rdrand %%ecx;\t\n"
-		: "=c" (result)
-		: "a" (operand1),
-		  "b" (operand2)
-		:
-	);
+	for (int i = 0; i < ESTIMATE_ROUNDS; i++) {
+		t1 = __rdtsc();
+		__asm__ __volatile__ (
+			"xor %%ecx, %%ecx;\t\n"
+			REP100("rdrand %%ecx;\t\n")
+			: "=c" (result)
+			: "a" (operand1),
+			"b" (operand2)
+			:
+		);
+		t2 = __rdtsc();
+		measurements[i] = t2 - t1;
+	}
+	sort(measurements, ESTIMATE_ROUNDS);
+	uint32_t median = measurements[ESTIMATE_ROUNDS / 2];
 	printf("Result: 0x%x\n", result);
+	printf("Median time: %d\n", median);
 
 	printf("[+] To reset the patch use the -r setting of any program in the tools folder\n");
 }
