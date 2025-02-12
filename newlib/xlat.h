@@ -2,15 +2,7 @@
 #define XLAT_H_
 
 /* Taken from lib-micro/tools/main/main.c */
-#define CPUID_XLAT					0x0be0
-#define PAUSE_XLAT					0x0bf0
 #define IRET_XLAT					0x07c8 //think this is wrong
-#define VMXON_XLAT					0x0ae8
-#define VMXOFF_XLAT					0x08c8
-#define VMLAUNCH_XLAT				0x0328
-#define VMCLEAR_XLAT				0x0af8
-#define HLT_XLAT					0x0818
-#define SYSEXITQ_XLAT				0x0740
 /* Taken from uCodeDisasm/glm_ucode_disasm/lables.txt */
 #define SIDT_XLAT					0x02d8
 #define VMRESUME_XLAT				0x0320
