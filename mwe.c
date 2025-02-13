@@ -103,13 +103,13 @@ void do_fix_IN_patch() {
 void do_rdrand_patch() {
 	uint32_t patch_addr = 0x7da0;
 
-	ucode_t ucode_patch[] = { /* rdrand %source; %source := rax == rbx ? 1 : 2 */
-
+	ucode_t ucode_patch[] = {
+		/* rdrand %source; %source := rax == rbx ? 1 : 2 */
 		// { /* This works */
 		// 	SUB_DSZ64_DRR(TMP0, RAX, RBX),
 		// 	UJMPCC_DIRECT_NOTTAKEN_CONDNZ_RI(TMP0, patch_addr + 0x08),
 		// 	NOP,
-		// 	(SEQ_NOP | SEQ_NEXT | SEQ_SYNCFULL(1) )
+		// 	( SEQ_NOP | SEQ_NEXT | SEQ_SYNCFULL(1) )
 		// }, {
 		// 	NOP,
 		// 	NOP,
@@ -122,16 +122,38 @@ void do_rdrand_patch() {
 		// 	END_SEQWORD
 		// }
 
-		{ /* This also works, more compact */
-			SUB_DSZ64_DRR(TMP0, RAX, RBX),
-			UJMPCC_DIRECT_NOTTAKEN_CONDNZ_RI(TMP0, patch_addr + 0x04),
-			ZEROEXT_DSZ64_DI(R64SRC, 1),
-			(SEQ_UEND0(2) | SEQ_NEXT | SEQ_SYNCFULL(1) )
+		// { /* This also works, more compact */
+		// 	SUB_DSZ64_DRR(TMP0, RAX, RBX),
+		// 	UJMPCC_DIRECT_NOTTAKEN_CONDNZ_RI(TMP0, patch_addr + 0x04),
+		// 	ZEROEXT_DSZ64_DI(R64SRC, 1),
+		// 	( SEQ_UEND0(2) | SEQ_NEXT | SEQ_SYNCFULL(1) )
+		// }, {
+		// 	ZEROEXT_DSZ64_DI(R64SRC, 2),
+		// 	NOP,
+		// 	NOP,
+		// 	END_SEQWORD
+		// }
+
+		/* Loopy mcloopface */
+		{
+			ZEROEXT_DSZ64_DI(TMP0, 0xffff),
+			NOP,
+			NOP,
+			NOP_SEQWORD,
 		}, {
-			ZEROEXT_DSZ64_DI(R64SRC, 2),
+			SUB_DSZ64_DIR(TMP0, 1, TMP0),	// TMP0 := TMP0 - 1
+			ADD_DSZ64_DRI(R64SRC, R64SRC, 1),
+			ADD_DSZ64_DRI(R64SRC, R64SRC, 1),
+			NOP_SEQWORD
+		}, {
+			ADD_DSZ64_DRI(R64SRC, R64SRC, 1),
+			UJMPCC_DIRECT_NOTTAKEN_CONDNZ_RI(TMP0, patch_addr + 0x04),
 			NOP,
-			NOP,
-			END_SEQWORD
+			( SEQ_UEND0(2) | SEQ_NEXT | SEQ_SYNCFULL(1) )
+			// If I change to SYNCFULL(2) in order to move the jump one uinstr below,
+			// even without moving the jump itself one step down, the cpu just dies lol.
+			// Not gonna bother with that.
+			// Maybe UEND and SYNC can't be on the same uinstr? Kinda makes sense.
 		}
 	};
 
@@ -140,7 +162,7 @@ void do_rdrand_patch() {
 }
 
 int main(int argc, char* argv[]) {
-	uint32_t operand1 = 1, operand2 = 1, result = 0;
+	uint32_t operand1 = 5, operand2 = 1, result = 0;
 	uint32_t measurements[ESTIMATE_ROUNDS], t1, t2;
 
 	do_fix_IN_patch();
@@ -150,7 +172,8 @@ int main(int argc, char* argv[]) {
 		t1 = __rdtsc();
 		__asm__ __volatile__ (
 			"xor %%ecx, %%ecx;\t\n"
-			REP100("rdrand %%ecx;\t\n")
+			// REP100("rdrand %%ecx;\t\n")
+			"rdrand %%ecx;\t\n"
 			: "=c" (result)
 			: "a" (operand1),
 			"b" (operand2)
@@ -162,7 +185,7 @@ int main(int argc, char* argv[]) {
 	sort(measurements, ESTIMATE_ROUNDS);
 	uint32_t median = measurements[ESTIMATE_ROUNDS / 2];
 	printf("Result: 0x%x\n", result);
-	printf("Median time: %d\n", median);
+	printf("Median time: %i\n", median);
 
 	printf("[+] To reset the patch use the -r setting of any program in the tools folder\n");
 }
